@@ -17,9 +17,27 @@ pub fn CTArray(comptime T: type) type {
             };
         }
 
-        pub fn hello() void {
-            std.debug.print("hello\n");
+        pub fn iterator(self: Self) Iterator {
+            return Iterator{
+                .current = 0,
+                .cta = self,
+            };
         }
+
+        pub const Iterator = struct {
+            current: T,
+            cta: Self,
+
+            pub fn next(self: *Iterator) ?T {
+                if (self.current < self.cta.items.len) {
+                    const value_to_return = self.cta.items[self.current];
+                    self.current += 1;
+                    return value_to_return;
+                } else {
+                    return null;
+                }
+            }
+        };
     };
 }
 
@@ -45,10 +63,15 @@ test "basic add functionality" {
     try std.testing.expect(add(3, 7) == 10);
 }
 
-test "check you can init with an int slice" {
-    var test_slice = [_]u16{1,2,3,4,5};
-    test_slice[3] = 2;
-    const cta = CTArray(u16);
+test "check you can init with an int slice and iterate it" {
+    var test_slice = [_]u8{1,2,3,4,5};
+    const cta = CTArray(u8);
     const test_cta = cta.init(&test_slice);
-    test_cta.hello();
+    var iter = test_cta.iterator();
+    try std.testing.expectEqual(1, iter.next());
+    try std.testing.expectEqual(2, iter.next());
+    try std.testing.expectEqual(3, iter.next());
+    try std.testing.expectEqual(4, iter.next());
+    try std.testing.expectEqual(5, iter.next());
+    try std.testing.expectEqual(null, iter.next());
 }
