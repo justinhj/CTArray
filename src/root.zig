@@ -2,25 +2,49 @@
 const std = @import("std");
 
 const CTArrayError = error {
-    CannotReplacePreviousBeforeNextCalled,
+    CannotReplacePairUntilTwoItemsIterated,
+    CannotReplacePairWthoutTwoPreviousItems,
     CannotReplaceAtEndOfIterator,
+    CannotReplacePreviousBeforeNextCalled,
+    ItemNotFound,
 };
 
 pub fn CTArray(comptime T: type) type {
     // Enforce some constraints on T
-    if (@typeInfo(T) != .int) {
-        @compileError("CTArray can only be used with int types");
+    if (@typeInfo(T) != .int and @typeInfo(T).int.signedness == .unsigned) {
+        @compileError("CTArray can only be used with unsigned int types");
     }
 
     return struct {
         const Self = @This();
 
+        const bits: usize = @typeInfo(T).int.bits;
+        const tombstone_mask: T = 1 << (bits - 1);
+        const value_mask: T = ~tombstone_mask;
+
         items: []T = undefined,
+
         pub fn init(items: []T) Self {
             return Self {
                 .items = items,
             };
         }
+
+        // Find the item index of the previous item
+        // taking into account tombstones
+        fn find_previous(self: Self, start: T) !T {
+            var pos = start - 1;
+            while (true) {
+                if (pos >= 0 and self.items[pos] & tombstone_mask == 0) {
+                    return pos;
+                } else {
+                    if (pos == 0) {
+                        return CTArrayError.ItemNotFound;
+                    }
+                    pos = pos - 1;
+                }
+            }
+        } 
 
         pub fn iterator(self: Self) Iterator {
             return Iterator{
@@ -38,8 +62,30 @@ pub fn CTArray(comptime T: type) type {
                 if (self.current == 0) {
                     return CTArrayError.CannotReplacePreviousBeforeNextCalled;
                 }
-                else if (self.current <= self.cta.items.len) {
+                else {
                     self.cta.items[self.current - 1] = replacement;
+                }
+            }
+
+            // Replace the last two items we delivered with next with a single replacement
+            pub fn replace_previous_pair(self: *Iterator, replacement: T) !void {
+                if (self.current < 2 ) {
+                    return CTArrayError.CannotReplacePairUntilTwoItemsIterated;
+                }
+                else {
+                    const previous = self.cta.find_previous(self.current);
+                    if (previous) |p| {
+                        self.cta.items[p] = replacement;
+                        const previous_previous = self.cta.find_previous(p);
+                        if (previous_previous) |pp| {
+                            self.cta.items[pp] = replacement;
+                        } else {
+                            return CTArrayError.ItemNotFound;
+                        }
+                    } else {
+                        return CTArrayError.ItemNotFound;
+                    }
+                    return;
                 }
             }
 
@@ -47,7 +93,7 @@ pub fn CTArray(comptime T: type) type {
                 if (self.current < self.cta.items.len) {
                     const value_to_return = self.cta.items[self.current];
                     self.current += 1;
-                    return value_to_return;
+                    return value_to_return & value_mask;
                 } else {
                     return null;
                 }
