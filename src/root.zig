@@ -203,6 +203,24 @@ test "init with an int slice and replace pair" {
     try std.testing.expectEqual(6, iter.next());
     try std.testing.expectEqual(4, iter.next());
     try std.testing.expectEqual(5, iter.next());
+    try iter.replace_previous_pair(7);
+    try std.testing.expectEqual(null, iter.next());
+
+    iter = test_cta.iterator();
+    try std.testing.expectEqual(1, iter.next());
+    try std.testing.expectEqual(6, iter.next());
+    try iter.replace_previous_pair(8);
+    try std.testing.expectEqual(7, iter.next());
+    try std.testing.expectEqual(null, iter.next());
+
+    iter = test_cta.iterator();
+    try std.testing.expectEqual(8, iter.next());
+    try std.testing.expectEqual(7, iter.next());
+    try iter.replace_previous_pair(9);
+    try std.testing.expectEqual(null, iter.next());
+
+    iter = test_cta.iterator();
+    try std.testing.expectEqual(9, iter.next());
     try std.testing.expectEqual(null, iter.next());
 }
 
