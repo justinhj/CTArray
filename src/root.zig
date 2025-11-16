@@ -73,26 +73,37 @@ pub fn CTArray(comptime T: type) type {
                     return CTArrayError.CannotReplacePairUntilTwoItemsIterated;
                 }
                 else {
-                    const previous = self.cta.find_previous(self.current);
-                    if (previous) |p| {
-                        self.cta.items[p] = replacement;
-                        const previous_previous = self.cta.find_previous(p);
-                        if (previous_previous) |pp| {
-                            self.cta.items[pp] = replacement;
-                        } else {
-                            return CTArrayError.ItemNotFound;
-                        }
-                    } else {
-                        return CTArrayError.ItemNotFound;
-                    }
+                    const previous = self.cta.find_previous(self.current) 
+                        catch return CTArrayError.ItemNotFound;
+                    self.cta.items[previous] = replacement;
+                    const previous_previous = self.cta.find_previous(previous)
+                        catch return CTArrayError.ItemNotFound;
+
+                    self.cta.items[previous_previous] = tombstone_mask | (previous - previous_previous);
                     return;
                 }
             }
 
             pub fn next(self: *Iterator) ?T {
                 if (self.current < self.cta.items.len) {
+                    while (self.current < self.cta.items.len) {
+                        if (self.cta.items[self.current] & tombstone_mask == tombstone_mask) {
+                            self.current += (self.cta.items[self.current] & value_mask);
+                        }
+                        if (self.current == self.cta.items.len) {
+                            return null;
+                        } else {
+                            break;
+                        }
+                    }
                     const value_to_return = self.cta.items[self.current];
+
                     self.current += 1;
+
+                    while (self.current < self.cta.items.len and self.cta.items[self.current] & tombstone_mask == tombstone_mask)  {
+                        self.current += (self.cta.items[self.current] & value_mask);
+                    }
+
                     return value_to_return & value_mask;
                 } else {
                     return null;
@@ -171,6 +182,27 @@ test "init with an int slice and replace first and last elements" {
     try std.testing.expectEqual(3, iter.next());
     try std.testing.expectEqual(4, iter.next());
     try std.testing.expectEqual(7, iter.next());
+    try std.testing.expectEqual(null, iter.next());
+}
+
+test "init with an int slice and replace pair" {
+    var test_slice = [_]u8{1,2,3,4,5};
+    const cta = CTArray(u8);
+    const test_cta = cta.init(&test_slice);
+    var iter = test_cta.iterator();
+    try std.testing.expectEqual(1, iter.next());
+    try std.testing.expectEqual(2, iter.next());
+    try std.testing.expectEqual(3, iter.next());
+    try iter.replace_previous_pair(6);
+    try std.testing.expectEqual(4, iter.next());
+    try std.testing.expectEqual(5, iter.next());
+    try std.testing.expectEqual(null, iter.next());
+
+    iter = test_cta.iterator();
+    try std.testing.expectEqual(1, iter.next());
+    try std.testing.expectEqual(6, iter.next());
+    try std.testing.expectEqual(4, iter.next());
+    try std.testing.expectEqual(5, iter.next());
     try std.testing.expectEqual(null, iter.next());
 }
 
