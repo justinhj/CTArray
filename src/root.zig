@@ -7,6 +7,7 @@ const CTArrayError = error {
     CannotReplaceAtEndOfIterator,
     CannotReplacePreviousBeforeNextCalled,
     ItemNotFound,
+    NumericTypeNotBigEnoughForArray,
 };
 
 pub fn CTArray(comptime T: type) type {
@@ -21,13 +22,18 @@ pub fn CTArray(comptime T: type) type {
         const bits: usize = @typeInfo(T).int.bits;
         const tombstone_mask: T = 1 << (bits - 1);
         const value_mask: T = ~tombstone_mask;
+        const max_skip: usize = (1 << (bits - 1)) - 1;
 
         items: []T = undefined,
 
-        pub fn init(items: []T) Self {
-            return Self {
-                .items = items,
-            };
+        pub fn init(items: []T) !Self {
+            if (items.len > max_skip) {
+                return CTArrayError.NumericTypeNotBigEnoughForArray;
+            } else {
+                return Self {
+                    .items = items,
+                };
+            }
         }
 
         // Find the item index of the previous item
@@ -117,7 +123,7 @@ pub fn CTArray(comptime T: type) type {
 test "init with an int slice and iterate it" {
     var test_slice = [_]u8{1,2,3,4,5};
     const cta = CTArray(u8);
-    const test_cta = cta.init(&test_slice);
+    const test_cta = try cta.init(&test_slice);
     var iter = test_cta.iterator();
     try std.testing.expectEqual(1, iter.next());
     try std.testing.expectEqual(2, iter.next());
@@ -130,7 +136,7 @@ test "init with an int slice and iterate it" {
 test "Init slice and replace middle element" {
     var test_slice = [_]u8{1,2,3,4,5};
     const cta = CTArray(u8);
-    var test_cta = cta.init(&test_slice);
+    var test_cta = try cta.init(&test_slice);
     var iter = test_cta.iterator();
     try std.testing.expectEqual(1, iter.next());
     try std.testing.expectEqual(2, iter.next());
@@ -152,7 +158,7 @@ test "Init slice and replace middle element" {
 test "Init slice and replace single element" {
     var test_slice = [_]u8{1};
     const cta = CTArray(u8);
-    var test_cta = cta.init(&test_slice);
+    var test_cta = try cta.init(&test_slice);
     var iter = test_cta.iterator();
     try std.testing.expectEqual(1, iter.next());
     try iter.replace_previous(6);
@@ -166,7 +172,7 @@ test "Init slice and replace single element" {
 test "init with an int slice and replace first and last elements" {
     var test_slice = [_]u8{1,2,3,4,5};
     const cta = CTArray(u8);
-    const test_cta = cta.init(&test_slice);
+    const test_cta = try cta.init(&test_slice);
     var iter = test_cta.iterator();
     try std.testing.expectEqual(1, iter.next());
     try iter.replace_previous(6);
@@ -189,7 +195,7 @@ test "init with an int slice and replace first and last elements" {
 test "init with an int slice and replace pair happy path" {
     var test_slice = [_]u8{1,2,3,4,5};
     const cta = CTArray(u8);
-    const test_cta = cta.init(&test_slice);
+    const test_cta = try cta.init(&test_slice);
     var iter = test_cta.iterator();
     try std.testing.expectEqual(1, iter.next());
     try std.testing.expectEqual(2, iter.next());
@@ -229,7 +235,7 @@ test "init with an int slice and replace pair happy path" {
 test "replace pair when too near the start" {
     var test_slice = [_]u8{1,2,3,4,5};
     const cta = CTArray(u8);
-    const test_cta = cta.init(&test_slice);
+    const test_cta = try cta.init(&test_slice);
     var iter = test_cta.iterator();
     try std.testing.expectError(CTArrayError.CannotReplacePairUntilTwoItemsIterated, iter.replace_previous_pair(9));
 }
@@ -237,7 +243,7 @@ test "replace pair when too near the start" {
 test "replace pair when no pairs left" {
     var test_slice = [_]u8{1,2,3};
     const cta = CTArray(u8);
-    const test_cta = cta.init(&test_slice);
+    const test_cta = try cta.init(&test_slice);
 
     var iter = test_cta.iterator();
     try std.testing.expectEqual(1, iter.next());
@@ -264,7 +270,7 @@ test "replace pair when no pairs left" {
 test "u32 slice" {
     var test_slice = [_]u32{1,2,3};
     const cta32 = CTArray(u32);
-    var test_cta = cta32.init(&test_slice);
+    var test_cta = try cta32.init(&test_slice);
     var iter = test_cta.iterator();
     try std.testing.expectEqual(1, iter.next());
     try std.testing.expectEqual(2, iter.next());
@@ -275,17 +281,32 @@ test "u32 slice" {
 test "u64 slice" {
     var test_slice = [_]u64{1,2,3};
     const cta64 = CTArray(u64);
-    var test_cta = cta64.init(&test_slice);
+    var test_cta = try cta64.init(&test_slice);
     var iter = test_cta.iterator();
     try std.testing.expectEqual(1, iter.next());
     try std.testing.expectEqual(2, iter.next());
     try std.testing.expectEqual(3, iter.next());
     try std.testing.expectEqual(null, iter.next());
 }
+
+test "verify overflow protection happy path" {
+    var test_slice = [_]u8{42} ** 127;
+    const cta8 = CTArray(u8);
+    var test_cta = try cta8.init(&test_slice);
+    var iter = test_cta.iterator();
+    try std.testing.expectEqual(42, iter.next());
+}
+
+test "verify overflow protection sad path" {
+    var test_slice = [_]u8{42} ** 128;
+    const cta8 = CTArray(u8);
+    try std.testing.expectError(CTArrayError.NumericTypeNotBigEnoughForArray, cta8.init(&test_slice));
+}
+
 // Uncomment to verify that this won't compile
 // test "check you cannot init with a non int slice" {
 //     var test_slice = [_][]const u8{"1","2","3","4","5"};
 //     const cta = CTArray([] const u8);
-//     const test_cta = cta.init(&test_slice);
+//     const test_cta = try cta.init(&test_slice);
 //     _ = test_cta;
 // }
