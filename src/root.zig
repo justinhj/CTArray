@@ -89,6 +89,7 @@ pub fn CTArray(comptime T: type) type {
                     while (self.current < self.cta.items.len) {
                         if (self.cta.items[self.current] & tombstone_mask == tombstone_mask) {
                             self.current += (self.cta.items[self.current] & value_mask);
+                            continue;
                         }
                         if (self.current == self.cta.items.len) {
                             return null;
@@ -194,6 +195,7 @@ test "init with an int slice and replace pair" {
     try std.testing.expectEqual(2, iter.next());
     try std.testing.expectEqual(3, iter.next());
     try iter.replace_previous_pair(6);
+
     try std.testing.expectEqual(4, iter.next());
     try std.testing.expectEqual(5, iter.next());
     try std.testing.expectEqual(null, iter.next());
