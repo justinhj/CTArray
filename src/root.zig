@@ -261,6 +261,27 @@ test "replace pair when no pairs left" {
     try std.testing.expectError(CTArrayError.ItemNotFound, iter.replace_previous_pair(7));
 }
 
+test "u32 slice" {
+    var test_slice = [_]u32{1,2,3};
+    const cta32 = CTArray(u32);
+    var test_cta = cta32.init(&test_slice);
+    var iter = test_cta.iterator();
+    try std.testing.expectEqual(1, iter.next());
+    try std.testing.expectEqual(2, iter.next());
+    try std.testing.expectEqual(3, iter.next());
+    try std.testing.expectEqual(null, iter.next());
+}
+
+test "u64 slice" {
+    var test_slice = [_]u64{1,2,3};
+    const cta64 = CTArray(u64);
+    var test_cta = cta64.init(&test_slice);
+    var iter = test_cta.iterator();
+    try std.testing.expectEqual(1, iter.next());
+    try std.testing.expectEqual(2, iter.next());
+    try std.testing.expectEqual(3, iter.next());
+    try std.testing.expectEqual(null, iter.next());
+}
 // Uncomment to verify that this won't compile
 // test "check you cannot init with a non int slice" {
 //     var test_slice = [_][]const u8{"1","2","3","4","5"};
