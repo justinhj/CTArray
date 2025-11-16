@@ -186,7 +186,7 @@ test "init with an int slice and replace first and last elements" {
     try std.testing.expectEqual(null, iter.next());
 }
 
-test "init with an int slice and replace pair" {
+test "init with an int slice and replace pair happy path" {
     var test_slice = [_]u8{1,2,3,4,5};
     const cta = CTArray(u8);
     const test_cta = cta.init(&test_slice);
@@ -224,6 +224,41 @@ test "init with an int slice and replace pair" {
     iter = test_cta.iterator();
     try std.testing.expectEqual(9, iter.next());
     try std.testing.expectEqual(null, iter.next());
+}
+
+test "replace pair when too near the start" {
+    var test_slice = [_]u8{1,2,3,4,5};
+    const cta = CTArray(u8);
+    const test_cta = cta.init(&test_slice);
+    var iter = test_cta.iterator();
+    try std.testing.expectError(CTArrayError.CannotReplacePairUntilTwoItemsIterated, iter.replace_previous_pair(9));
+}
+
+test "replace pair when no pairs left" {
+    var test_slice = [_]u8{1,2,3};
+    const cta = CTArray(u8);
+    const test_cta = cta.init(&test_slice);
+
+    var iter = test_cta.iterator();
+    try std.testing.expectEqual(1, iter.next());
+    try std.testing.expectEqual(2, iter.next());
+    try iter.replace_previous_pair(6);
+    try std.testing.expectEqual(3, iter.next());
+    try std.testing.expectEqual(null, iter.next());
+
+    iter = test_cta.iterator();
+    try std.testing.expectEqual(6, iter.next());
+    try std.testing.expectEqual(3, iter.next());
+    try iter.replace_previous_pair(7);
+    try std.testing.expectEqual(null, iter.next());
+
+    iter = test_cta.iterator();
+    try std.testing.expectEqual(7, iter.next());
+    try std.testing.expectEqual(null, iter.next());
+
+    iter = test_cta.iterator();
+    try std.testing.expectEqual(7, iter.next());
+    try std.testing.expectError(CTArrayError.ItemNotFound, iter.replace_previous_pair(7));
 }
 
 // Uncomment to verify that this won't compile
